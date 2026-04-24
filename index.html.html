@@ -1,0 +1,508 @@
+html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Fiocruz | Painel de Gestão Financeira</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f5f9;
+            color: #1a2c3e;
+            padding: 24px 28px;
+        }
+        .dashboard-container { max-width: 1800px; margin: 0 auto; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+            background: white;
+            padding: 12px 28px;
+            border-radius: 32px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .title-section h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, #0066a1, #009c6d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .title-section p { color: #2c6079; font-weight: 500; }
+
+        .filters-card {
+            background: white;
+            border-radius: 28px;
+            padding: 20px 28px;
+            margin-bottom: 32px;
+            border: 1px solid #e0ecf2;
+        }
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 18px;
+            align-items: end;
+        }
+        .filter-group label { font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #2c7a5e; display: block; margin-bottom: 6px; }
+        .filter-group select, .filter-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            border: 1px solid #cbdde6;
+            font-family: inherit;
+        }
+        .btn-filter {
+            background: #0066a1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-filter:hover { background: #004d7a; }
+        .btn-reset { background: #5c7a99; margin-left: 8px; }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        .kpi-card {
+            background: white;
+            border-radius: 24px;
+            padding: 16px 20px;
+            border-left: 5px solid #009c6d;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .kpi-title { 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            color: #5c7a99; 
+            letter-spacing: 1px; 
+            margin-bottom: 4px;
+        }
+        .kpi-value { 
+            font-size: 1.3rem; 
+            font-weight: 800; 
+            color: #0b3b4f; 
+            line-height: 1.2; 
+        }
+        .kpi-sub { display: none; }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 28px;
+            margin-bottom: 40px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 28px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .chart-card h3 { font-weight: 600; margin-bottom: 16px; border-left: 4px solid #009c6d; padding-left: 12px; }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin: 20px 0 12px;
+            color: #00577c;
+        }
+        .toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+        #export-csv {
+            background: #2c7a4b;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+        footer { text-align: center; margin-top: 40px; font-size: 0.7rem; color: #6f8faa; border-top: 1px solid #d4e2ea; padding-top: 20px; }
+        @media (max-width: 780px) { body { padding: 16px; } }
+    </style>
+</head>
+<body>
+<div class="dashboard-container">
+    <div class="header">
+        <div class="title-section">
+            <h1><i class="fas fa-chart-line"></i> Painel de Controle Financeiro</h1>
+            <p>Fiocruz Brasília | Execução de Gastos DI 2026 (dados atualizados)</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filters-card">
+        <div class="filters-grid">
+            <div class="filter-group"><label>📌 Projeto</label><select id="filter-projeto"><option value="">Todos</option></select></div>
+            <div class="filter-group"><label>🏷️ Rubrica</label><select id="filter-rubrica"><option value="">Todas</option></select></div>
+            <div class="filter-group"><label>🏢 Área Demandante</label><select id="filter-area"><option value="">Todas</option></select></div>
+            <div class="filter-group"><label>🤝 Favorecido</label><select id="filter-favorecido"><option value="">Todos</option></select></div>
+            <div class="filter-group"><label>📅 Data inicial</label><input type="date" id="data-inicio"></div>
+            <div class="filter-group"><label>📅 Data final</label><input type="date" id="data-fim"></div>
+            <div class="filter-group"><button id="aplicar-filtros" class="btn-filter"><i class="fas fa-filter"></i> Aplicar</button><button id="reset-filtros" class="btn-filter btn-reset"><i class="fas fa-undo-alt"></i> Reset</button></div>
+        </div>
+    </div>
+
+    <!-- KPIs (5 indicadores) -->
+    <div class="kpi-grid" id="kpiContainer"></div>
+
+    <!-- Gráficos -->
+    <div class="charts-row">
+        <div class="chart-card"><h3><i class="fas fa-chart-bar"></i> Ranking de Projetos (Por concentração de recursos executados - DI)</h3><canvas id="rankingAllProjectsChart" height="300"></canvas></div>
+        <div class="chart-card"><h3><i class="fas fa-chart-pie"></i> Utilização por Tipo de Gasto</h3><canvas id="rubricChart" height="250"></canvas></div>
+    </div>
+    <div class="charts-row">
+        <div class="chart-card"><h3><i class="fas fa-chart-simple"></i> Concentração de Gastos por Área Demandante e Rubrica</h3><canvas id="areaRubricChart" height="300"></canvas></div>
+    </div>
+
+    <!-- Tabela -->
+    <div class="section-title">Tabela de Gastos DI 2026</div>
+    <div class="toolbar"><button id="export-csv"><i class="fas fa-download"></i> Exportar CSV (filtrado)</button></div>
+    <div id="gastos-table" style="border-radius: 20px; overflow: hidden;"></div>
+    <footer>Dashboard com dados atualizados em 24/04/2026. Filtros dinâmicos afetam todos os gráficos e indicadores.</footer>
+</div>
+
+<script>
+    // --------------------------------------------------------------
+    // 1. DADOS DE GASTOS (129 transações da nova planilha DI 2026)
+    //    Valores extraídos da coluna E (VALOR)
+    // --------------------------------------------------------------
+    const gastosCompletos = [
+        {item:1, valor:40000.00, data:"2026-01-06", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"GABINETE", descricao:"EVENTO: 14º CONGRESSO BRASILEIRO DE SAÚDE COLETIVA.", favorecido:"KINGSMAN SOLUCOES EM EVENTOS LTDA", meta:3, modalidade:"SPCD"},
+        {item:2, valor:3952.38, data:"2026-01-14", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDENTE DA FIOCRUZ BRASÍLIA - DR MÁRIO MOREIRA", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"PASSAGENS"},
+        {item:3, valor:570.00, data:"2026-01-14", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDENTE DA FIOCRUZ BRASÍLIA", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:4, valor:2249.90, data:"2026-01-12", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DO II SEMINÁRIO STEM NA SAÚDE", favorecido:"NOELY FABIANA OLIVEIRA DE MOURA", meta:4, modalidade:"PASSAGENS"},
+        {item:5, valor:1470.00, data:"2026-01-12", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DO II SEMINÁRIO STEM NA SAÚDE", favorecido:"NOELY FABIANA OLIVEIRA DE MOURA", meta:4, modalidade:"DIÁRIAS"},
+        {item:6, valor:30000.00, data:"2026-02-02", projeto:"GEREB 012 FIO 25", rubrica:"CLT", area:"NUSMAD", descricao:"CONTRATAÇÃO CLT - VALOR ANUAL BRUTO", favorecido:"LÍSIA HELENA OLIVIERA SALES", meta:1, modalidade:"CLT"},
+        {item:7, valor:646.3375, data:"2026-02-26", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"NETHIS", descricao:"PARTICIPAÇÃO DAS REUNIÕES COM AUTORIDADES DO GOVERNO ESTADUAL", favorecido:"JOSÉ FRANCISCO NOGUEIRO PARANAGUÁ DE SANTANA", meta:4, modalidade:"PASSAGENS"},
+        {item:8, valor:1216.6666666666667, data:"2026-02-26", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"NETHIS", descricao:"PARTICIPAÇÃO DAS REUNIÕES GOVERNO ESTADUAL", favorecido:"JOSÉ FRANCISCO NOGUEIRO PARANAGUÁ DE SANTANA", meta:4, modalidade:"DIÁRIAS"},
+        {item:9, valor:1676.60, data:"2026-01-21", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"GABINETE", descricao:"PARTICIPAR DE REUNIÕES DE AÇÃO REFERENTES A TEMÁTICA DO PROJETO", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"PASSAGENS"},
+        {item:10, valor:237.50, data:"2026-06-21", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"PARTICIPAR DE REUNIÕES DE AÇÃO", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:11, valor:7185.00, data:"2026-01-22", projeto:"GEREB 005 FIO 21", rubrica:"SPCD", area:"GABINETE", descricao:"RENOVAÇÃO DE LICENÇA ADOBE - ASCOM", favorecido:"MCR SOFTWARE", meta:5, modalidade:"SPCD"},
+        {item:12, valor:1104.3125, data:"2026-01-16", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"PSAT", descricao:"PARTICIPAR DO PLANEJAMENTO E AULAS DA RESIDENCIA MULTIPROFISSIONAL", favorecido:"FRANCILENE MENEZES DOS SANTOS", meta:4, modalidade:"PASSAGENS"},
+        {item:13, valor:987.50, data:"2026-01-16", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"PSAT", descricao:"PARTICIPAR DO PLANEJAMENTO RESIDENCIA", favorecido:"FRANCILENE MENEZES DOS SANTOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:14, valor:480.3875, data:"2026-01-28", projeto:"GEREB 031 FIO 23", rubrica:"PASSAGENS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DAS AULAS PRESENCIAIS DO CURSO DE ESPECIALIZAÇÃO", favorecido:"FABIANA DA SILVA RODRIGUES FERNANDES", meta:3, modalidade:"PASSAGENS"},
+        {item:15, valor:800.00, data:"2026-01-28", projeto:"GEREB 031 FIO 23", rubrica:"DIÁRIAS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DAS AULAS PRESENCIAIS", favorecido:"FABIANA DA SILVA RODRIGUES FERNANDES", meta:3, modalidade:"DIÁRIAS"},
+        {item:16, valor:8312.50, data:"2026-01-29", projeto:"GEREB 013 FIO 21", rubrica:"SPCD", area:"ASCOM", descricao:"SERVIÇOS GRÁFICOS: FOLDERS - MENSAGEM DO PRESIDENTE", favorecido:"IMAGEM GRÁFICA", meta:5, modalidade:"SPCD"},
+        {item:17, valor:15225.00, data:"2026-01-30", projeto:"GEREB 009 FIO 24", rubrica:"SPCD", area:"PSAT", descricao:"SERVIÇOS GRÁFICOS E EDITORIAIS: LIVRO TERRITÓRIOS SAUDÁVEIS", favorecido:"EDITORA EXPRESSÃO POPULAR LTDA", meta:3, modalidade:"SPCD"},
+        {item:18, valor:1062.4291666666666, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA DE MÉTODOS - MESTRADO RONDÔNIA", favorecido:"EDUARDO AUGUSTO FERNANDES NILSON", meta:4, modalidade:"PASSAGENS"},
+        {item:19, valor:1050.00, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA DE MÉTODOS", favorecido:"EDUARDO AUGUSTO FERNANDES NILSON", meta:4, modalidade:"DIÁRIAS"},
+        {item:20, valor:939.9541666666665, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA DE MÉTODOS", favorecido:"ANA GRETEL ECHAZU", meta:4, modalidade:"PASSAGENS"},
+        {item:21, valor:883.3333333333333, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA", favorecido:"ANA GRETEL ECHAZU", meta:4, modalidade:"DIÁRIAS"},
+        {item:22, valor:939.9541666666665, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA", favorecido:"NOELY FABIANA OLIVEIRA DE MOURA", meta:4, modalidade:"PASSAGENS"},
+        {item:23, valor:883.3333333333333, data:"2026-01-28", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"NEVS", descricao:"MINISTRAR DISCIPLINA", favorecido:"NOELY FABIANA OLIVEIRA DE MOURA", meta:4, modalidade:"DIÁRIAS"},
+        {item:24, valor:1789.275, data:"2026-01-30", projeto:"GEREB 018 FIO 23", rubrica:"PASSAGENS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAÇÃO DA OFICINA JATOBÁ 60+", favorecido:"MARIA CRISTINA RODRIGUES GUILAM", meta:3, modalidade:"PASSAGENS"},
+        {item:25, valor:612.50, data:"2026-01-30", projeto:"GEREB 018 FIO 23", rubrica:"DIÁRIAS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAÇÃO DA OFICINA JATOBÁ 60+", favorecido:"MARIA CRISTINA RODRIGUES GUILAM", meta:3, modalidade:"DIÁRIAS"},
+        {item:26, valor:833.3333333333333, data:"2026-01-10", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 01 MÊS", favorecido:"ALAN RAYMISON TAVARES RABELO", meta:3, modalidade:"BOLSA"},
+        {item:27, valor:2083.3333333333335, data:"2026-01-10", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 01 MÊS", favorecido:"ANDREIA GUSSI DE OLIVEIRA", meta:3, modalidade:"BOLSA"},
+        {item:28, valor:833.3333333333333, data:"2026-02-03", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 06 MESES", favorecido:"BEATRIZ OLIVEIRA BLACKMAN MACHADO", meta:3, modalidade:"BOLSA"},
+        {item:29, valor:1666.6666666666665, data:"2026-02-03", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 02 MESES", favorecido:"CAMILA LIMA NOGUEIRA", meta:3, modalidade:"BOLSA"},
+        {item:30, valor:7062.50, data:"2026-01-26", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"ASCOM", descricao:"SERVIÇOS GRÁFICOS: FOLDERS", favorecido:"IMAGEM GRÁFICA", meta:3, modalidade:"SPCD"},
+        {item:31, valor:7187.50, data:"2026-01-02", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"AQUISIÇÃO DE LICENÇA ADOBE - 12 MESES", favorecido:"JR COMERCIO LTDA", meta:3, modalidade:"SPCD"},
+        {item:32, valor:2065.4166666666665, data:"2026-03-02", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"AQUISIÇÃO DE KIT TECLADO E MOUSE", favorecido:"JR COMERCIO LTDA", meta:3, modalidade:"SPCD"},
+        {item:33, valor:4083.333333333333, data:"2026-02-10", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"EVENTO: COLETIVO JATOBÁ 60+", favorecido:"IARA MARIA MAXIMO NOGUEIRA ME", meta:3, modalidade:"SPCD"},
+        {item:34, valor:2173.054166666667, data:"2026-02-08", projeto:"GEREB 014 FIO 24", rubrica:"PASSAGENS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDÊNCIA FIOCRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:1, modalidade:"PASSAGENS"},
+        {item:35, valor:237.50, data:"2026-02-08", projeto:"GEREB 014 FIO 24", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDÊNCIA FIOCRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:1, modalidade:"DIÁRIAS"},
+        {item:36, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"CPP", descricao:"PARTICIPAÇÃO NO FÓRUM OSWALDO CRUZ", favorecido:"MARCIA DA LUZ MOTA", meta:5, modalidade:"PASSAGENS"},
+        {item:37, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"CPP", descricao:"PARTICIPAÇÃO NO FÓRUM OSWALDO CRUZ", favorecido:"MARCIA DA LUZ MOTA", meta:5, modalidade:"DIÁRIAS"},
+        {item:38, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"MARGE TENORIO", meta:5, modalidade:"PASSAGENS"},
+        {item:39, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"PEPTS", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"MARGE TENORIO", meta:5, modalidade:"DIÁRIAS"},
+        {item:40, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"ANA GRETEL ECHAZU", meta:5, modalidade:"PASSAGENS"},
+        {item:41, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"ANA GRETEL ECHAZU", meta:5, modalidade:"DIÁRIAS"},
+        {item:42, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"PEPTS", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"FLÁVIA TAVARES SILVA ELIAS", meta:5, modalidade:"PASSAGENS"},
+        {item:43, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"PEPTS", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"FLÁVIA TAVARES SILVA ELIAS", meta:5, modalidade:"DIÁRIAS"},
+        {item:44, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"GABINETE", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"ALEXANDRO RODRIGUES PINTO", meta:5, modalidade:"PASSAGENS"},
+        {item:45, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"ALEXANDRO RODRIGUES PINTO", meta:5, modalidade:"DIÁRIAS"},
+        {item:46, valor:933.3875, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"JOÃO VITOR DA SILVA SANTOS", meta:5, modalidade:"PASSAGENS"},
+        {item:47, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"JOÃO VITOR DA SILVA SANTOS", meta:5, modalidade:"DIÁRIAS"},
+        {item:48, valor:651.1541666666666, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"PASSAGENS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"LUCIANA GUERRA GALLO", meta:5, modalidade:"PASSAGENS"},
+        {item:49, valor:425.00, data:"2026-02-10", projeto:"GEREB 013 FIO 21", rubrica:"DIÁRIAS", area:"CPP", descricao:"FÓRUM OSWALDO CRUZ", favorecido:"LUCIANA GUERRA GALLO", meta:5, modalidade:"DIÁRIAS"},
+        {item:50, valor:1461.7208333333335, data:"2026-02-12", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDÊNCIA FIOCRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"PASSAGENS"},
+        {item:51, valor:237.50, data:"2026-02-12", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"REUNIÃO COM PRESIDÊNCIA FIOCRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:52, valor:4166.666666666667, data:"2026-02-13", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 03 MESES", favorecido:"CECILIA CUNHA FRANCO FERREIRA VILAS BOAS", meta:3, modalidade:"BOLSA"},
+        {item:53, valor:6666.666666666666, data:"2026-02-13", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 03 MESES", favorecido:"WAGNER ELIAS PINHEIRO DOS SANTOS", meta:3, modalidade:"BOLSA"},
+        {item:54, valor:1183.3333333333333, data:"2026-02-13", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 02 MESES", favorecido:"FERNANDA KNIERIM CORREA", meta:3, modalidade:"BOLSA"},
+        {item:55, valor:2500.00, data:"2026-02-13", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 03 MESES", favorecido:"FRANCILENE MENEZES DOS SANTOS", meta:3, modalidade:"BOLSA"},
+        {item:56, valor:71256.50, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - GEANE MONTENEGRO", favorecido:"GEANE DI MAGIELLI FIGUEIRO DA SILVA MONTENEGRO", meta:7, modalidade:"CLT"},
+        {item:57, valor:1212.0541666666666, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ASCOM", descricao:"PARTICIPAÇÃO DA REUNIÃO DO FÓRUM DE ASSESSORES", favorecido:"FABIANA MASCARENHAS SANT'ANA", meta:4, modalidade:"PASSAGENS"},
+        {item:58, valor:237.50, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ASCOM", descricao:"PARTICIPAÇÃO DO FÓRUM DE ASSESSORES", favorecido:"FABIANA MASCARENHAS SANT'ANA", meta:4, modalidade:"DIÁRIAS"},
+        {item:59, valor:1536.9416666666666, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"PSAT", descricao:"MINISTRAR AULA RESIDÊNCIA MULTIPROFISSIONAL", favorecido:"FRANCILENE MENEZES DOS SANTOS", meta:4, modalidade:"PASSAGENS"},
+        {item:60, valor:2487.50, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"PSAT", descricao:"MINISTRAR AULA RESIDÊNCIA", favorecido:"FRANCILENE MENEZES DOS SANTOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:61, valor:735.375, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"PSAT", descricao:"MINISTRAR AULA", favorecido:"MAURICÉIA MARIA DE SANTANA", meta:4, modalidade:"PASSAGENS"},
+        {item:62, valor:800.00, data:"2026-02-20", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"PSAT", descricao:"MINISTRAR AULA", favorecido:"MAURICÉIA MARIA DE SANTANA", meta:4, modalidade:"DIÁRIAS"},
+        {item:63, valor:22083.333333333336, data:"2026-03-04", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 06 MESES", favorecido:"MATEUS DOS SANTOS BRITO", meta:3, modalidade:"BOLSA"},
+        {item:64, valor:5833.333333333334, data:"2026-03-03", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 02 MESES", favorecido:"PAMELA ARRUDA VASCONCELLOS", meta:3, modalidade:"BOLSA"},
+        {item:65, valor:10833.333333333332, data:"2026-03-06", projeto:"GEREB 007 FIO 20", rubrica:"SPCD", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"SERVIÇO DE ALIMENTAÇÃO - EVENTO CURSO INTELIGÊNCIA", favorecido:"IARA MARIA MAXIMO NOGUEIRA ME", meta:4, modalidade:"SPCD"},
+        {item:66, valor:687.50, data:"2026-03-09", projeto:"GEREB 007 FIO 20", rubrica:"SPCD", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"SERVIÇOS GRÁFICOS - AULA MAGNA", favorecido:"FERNANDO CAMARGOS DA SILVA", meta:4, modalidade:"SPCD"},
+        {item:67, valor:5737.50, data:"2026-03-02", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"GABINETE", descricao:"CONFECÇÃO DE CALENDÁRIOS 2026", favorecido:"IMAGEM GRÁFICA", meta:3, modalidade:"SPCD"},
+        {item:68, valor:1149.7208333333333, data:"2026-02-26", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"GABINETE", descricao:"PART. FÓRUM OSWALDO CRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"PASSAGENS"},
+        {item:69, valor:237.50, data:"2026-02-26", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"PART. FÓRUM OSWALDO CRUZ", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:4, modalidade:"DIÁRIAS"},
+        {item:70, valor:1080.825, data:"2026-03-06", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DA AULA INAUGURAL FIOCRUZ", favorecido:"LUCIANA SEPULVEDA KOPTCKE", meta:4, modalidade:"PASSAGENS"},
+        {item:71, valor:237.50, data:"2026-03-06", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"PARTICIPAR DA AULA INAUGURAL", favorecido:"LUCIANA SEPULVEDA KOPTCKE", meta:4, modalidade:"DIÁRIAS"},
+        {item:72, valor:2083.3333333333335, data:"2026-03-17", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 03 MESES", favorecido:"PEDRO HENRIQUE SANTOS VITORIANO", meta:3, modalidade:"BOLSA"},
+        {item:73, valor:46896.05, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"NEAD", descricao:"CONTRATAÇÃO CLT - ALEXANDRA JAPIASSU", favorecido:"ALEXANDRA GALVAO DE OLIVEIRA JAPIASSU", meta:12, modalidade:"CLT"},
+        {item:74, valor:124486.90, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - ALYSSON LEMOS", favorecido:"ALYSSON FELICIANO LEMOS", meta:12, modalidade:"CLT"},
+        {item:75, valor:20828.80, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - BRUNO LUCENA", favorecido:"BRUNO EDUARDO LUCENA DOS SANTOS", meta:12, modalidade:"CLT"},
+        {item:76, valor:32887.60, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - ERIKA VASCONCELOS", favorecido:"ERIKA DE SA VASCONCELOS", meta:12, modalidade:"CLT"},
+        {item:77, valor:56495.85, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - CAROLINA ALVARES", favorecido:"CAROLINA CARDOSO ALVARES", meta:12, modalidade:"CLT"},
+        {item:78, valor:51775.00, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - CLAUDIA CORREA", favorecido:"CLAUDIA LOPES CORREA", meta:12, modalidade:"CLT"},
+        {item:79, valor:41110.65, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - DENIS COSTA", favorecido:"DENIS HENRIQUE COSTA", meta:12, modalidade:"CLT"},
+        {item:80, valor:47290.50, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - GIANNI LAROCCA", favorecido:"GIANNI REINALDI LAROCCA", meta:12, modalidade:"CLT"},
+        {item:81, valor:42774.20, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - ILMA SANTOS", favorecido:"ILMA FRANCISCA SANTOS", meta:12, modalidade:"CLT"},
+        {item:82, valor:59727.30, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"GABINETE", descricao:"CONTRATAÇÃO CLT - JULIANA STEIMBACK", favorecido:"JULIANA GOMES DOS SANTOS STEIMBACK", meta:12, modalidade:"CLT"},
+        {item:83, valor:31881.35, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - KARLA SOUSA", favorecido:"KARLA MARIA PEREIRA SOUSA", meta:12, modalidade:"CLT"},
+        {item:84, valor:20828.80, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"GESTÃO", descricao:"CONTRATAÇÃO CLT - KLEBER CAVALCANTE", favorecido:"KLEBER PASSOS CAVALCANTE", meta:12, modalidade:"CLT"},
+        {item:85, valor:47115.75, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"GESTÃO", descricao:"CONTRATAÇÃO CLT - LEONARDO PAULA", favorecido:"LEONARDO DOS SANTOS DE PAULA", meta:12, modalidade:"CLT"},
+        {item:86, valor:47290.50, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - MARIA DAMASCENO", favorecido:"MARIA DAS GRACAS BARROSO DAMASCENO", meta:12, modalidade:"CLT"},
+        {item:87, valor:59727.30, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"GABINETE", descricao:"CONTRATAÇÃO CLT - MEIRILUCI LIMA", favorecido:"MEIRILUCI ALVES LIMA", meta:12, modalidade:"CLT"},
+        {item:88, valor:62504.60, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - PAULO CUGULA", favorecido:"PAULO ROBERTO CUGULA", meta:12, modalidade:"CLT"},
+        {item:89, valor:32887.60, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - POLLYANA PEREIRA", favorecido:"POLLYANA DOS SANTOS PEREIRA", meta:12, modalidade:"CLT"},
+        {item:90, valor:83536.70, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - RAFAEL MONTEIRO", favorecido:"RAFAEL DE MEDEIROS MONTEIRO", meta:12, modalidade:"CLT"},
+        {item:91, valor:40013.25, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"ASCOM", descricao:"CONTRATAÇÃO CLT - SERGIO VELHO JR", favorecido:"SERGIO VELHO DA SILVA JUNIOR", meta:12, modalidade:"CLT"},
+        {item:92, valor:59727.30, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - SUSANA BELICH", favorecido:"SUSANA DAMASCENO BELICH", meta:12, modalidade:"CLT"},
+        {item:93, valor:80144.75, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"UNASUS", descricao:"CONTRATAÇÃO CLT - SUZANA FRANCO", favorecido:"SUZANA MELO FRANCO", meta:12, modalidade:"CLT"},
+        {item:94, valor:47115.75, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"AJUR", descricao:"CONTRATAÇÃO CLT - THIAGO LIMA", favorecido:"THIAGO FIGUEIREDO DE LIMA", meta:12, modalidade:"CLT"},
+        {item:95, valor:44583.05, data:"2026-03-18", projeto:"GEREB 008 FIO 25", rubrica:"CLT", area:"NEAD", descricao:"CONTRATAÇÃO CLT - VANDO PINTO", favorecido:"VANDO CARVALHO RODRIGUES PINTO", meta:12, modalidade:"CLT"},
+        {item:96, valor:43021.15, data:"2026-03-18", projeto:"GEREB 023 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - ELAINE ROCHA", favorecido:"ELAINE RIBEIRO ROCHA", meta:8, modalidade:"CLT"},
+        {item:97, valor:46682.65, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - ARIEDNA JESUS", favorecido:"ARIEDNA AZEVEDO DE JESUS", meta:7, modalidade:"CLT"},
+        {item:98, valor:44843.50, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - ARTHUR LIMA", favorecido:"ARTHUR VIEIRA DE LIMA", meta:7, modalidade:"CLT"},
+        {item:99, valor:32887.60, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - CAMILA SALGADO", favorecido:"CAMILA LIMA SALGADO DOS SANTOS", meta:7, modalidade:"CLT"},
+        {item:100, valor:71256.50, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - CRISTIANO COSTA", favorecido:"CRISTIANO GOMES DA COSTA", meta:7, modalidade:"CLT"},
+        {item:101, valor:52212.60, data:"2026-03-18", projeto:"GEREB 033 FIO 23", rubrica:"CLT", area:"NUGP", descricao:"CONTRATAÇÃO CLT - ROSANGELA RIBEIRO", favorecido:"ROSANGELA COSTA RIBEIRO", meta:7, modalidade:"CLT"},
+        {item:102, valor:25760.10, data:"2026-03-18", projeto:"GEREB 014 FIO 24", rubrica:"CLT", area:"NUSMAD", descricao:"CONTRATAÇÃO CLT - CAMILA SELESTINO", favorecido:"CAMILA LINO SELESTINO DA SILVA", meta:10, modalidade:"CLT"},
+        {item:103, valor:1500.00, data:"2026-03-23", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 1 MÊS", favorecido:"THAIARA DORNELLES LAGO", meta:3, modalidade:"BOLSA"},
+        {item:104, valor:1050.00, data:"2026-03-30", projeto:"GEREB 009 FIO 24", rubrica:"SPCD", area:"PSAT", descricao:"PLANEJAMENTO PEDAGOGICO DAS RESIDÊNCIAS 2026", favorecido:"RUBENS MALAQUIAS", meta:3, modalidade:"SPCD"},
+        {item:105, valor:4926.87, data:"2026-03-23", projeto:"GEREB 031 FIO 23", rubrica:"PASSAGENS", area:"NETHIS", descricao:"LANÇAMENTO 1º CHAMADA COALIZAÇÃO", favorecido:"ROBERTA DE FREITAS CAMPOS", meta:3, modalidade:"PASSAGENS"},
+        {item:106, valor:570.00, data:"2026-03-23", projeto:"GEREB 031 FIO 23", rubrica:"DIÁRIAS", area:"NETHIS", descricao:"LANÇAMENTO COALIZAÇÃO", favorecido:"ROBERTA DE FREITAS CAMPOS", meta:3, modalidade:"DIÁRIAS"},
+        {item:107, valor:4883.88, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ASCOM", descricao:"OFICINA OLIMPÍADA BRASILEIRA SAÚDE", favorecido:"ADRIELLY MONIQUE REGO REIS", meta:4, modalidade:"PASSAGENS"},
+        {item:108, valor:1170.00, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ASCOM", descricao:"OFICINA OBSMA", favorecido:"ADRIELLY MONIQUE REGO REIS", meta:4, modalidade:"DIÁRIAS"},
+        {item:109, valor:4883.88, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ASCOM", descricao:"OFICINA OBSMA", favorecido:"GIOVANNA BRUNA RODRIGUES MARTINS", meta:4, modalidade:"PASSAGENS"},
+        {item:110, valor:11170.00, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ASCOM", descricao:"OFICINA OBSMA", favorecido:"GIOVANNA BRUNA RODRIGUES MARTINS", meta:4, modalidade:"DIÁRIAS"},
+        {item:111, valor:4883.88, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ASCOM", descricao:"OFICINA OBSMA", favorecido:"FERNANDO DA SILVA PINTO", meta:4, modalidade:"PASSAGENS"},
+        {item:112, valor:1170.00, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ASCOM", descricao:"OFICINA OBSMA", favorecido:"FERNANDO DA SILVA PINTO", meta:4, modalidade:"DIÁRIAS"},
+        {item:113, valor:4883.88, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"PASSAGENS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"OFICINA OBSMA", favorecido:"DOUGLAS FERNANDES DA SILVA", meta:4, modalidade:"PASSAGENS"},
+        {item:114, valor:1170.00, data:"2026-03-30", projeto:"GEREB 007 FIO 20", rubrica:"DIÁRIAS", area:"ESCOLA DE GOVERNO FIOCRUZ", descricao:"OFICINA OBSMA", favorecido:"DOUGLAS FERNANDES DA SILVA", meta:4, modalidade:"DIÁRIAS"},
+        {item:115, valor:7620.00, data:"2026-04-09", projeto:"GEREB 007 FIO 20", rubrica:"SPCD", area:"ASCOM", descricao:"MATERIAL GRÁFICO - SEMANA DE GESTÃO", favorecido:"POSITIVA", meta:4, modalidade:"SPCD"},
+        {item:116, valor:8928.00, data:"2026-04-09", projeto:"GEREB 007 FIO 20", rubrica:"SPCD", area:"ASCOM", descricao:"MATERIAL GRÁFICO - SEMANA GESTÃO", favorecido:"POSITIVA", meta:4, modalidade:"SPCD"},
+        {item:117, valor:3297.00, data:"2026-04-09", projeto:"GEREB 031 FIO 23", rubrica:"SPCD", area:"ASCOM", descricao:"MATERIAL GRÁFICO", favorecido:"POSITIVA", meta:3, modalidade:"SPCD"},
+        {item:118, valor:533.76, data:"2026-04-14", projeto:"GEREB 023 FIO 23", rubrica:"REEMBOLSO", area:"ASCOM", descricao:"RENOVAÇÃO LICENÇA FLICKR", favorecido:"FLICKR.COM", meta:2, modalidade:"REEMBOLSO"},
+        {item:119, valor:2000.00, data:"2026-04-14", projeto:"GEREB 007 FIO 20", rubrica:"SPCD", area:"GESTÃO", descricao:"AQUISIÇÃO DE LIVROS - SEMANA DE GESTÃO", favorecido:"HY PRODUÇÕES E EVENTOS", meta:4, modalidade:"SPCD"},
+        {item:120, valor:2000.00, data:"2026-02-20", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 1 MÊS", favorecido:"VINICIUS VIERA DA SILVA", meta:3, modalidade:"BOLSA"},
+        {item:121, valor:53900.00, data:"2026-04-23", projeto:"GEREB 009 FIO 24", rubrica:"BOLSA", area:"PSAT", descricao:"CONCESSÃO DE BOLSA - 07 MESES", favorecido:"FATIMA CRISTINA CUNHA MAIA SILVA", meta:3, modalidade:"BOLSA"},
+        {item:122, valor:4487.13, data:"2026-04-16", projeto:"GEREB 001 FIO 24", rubrica:"PASSAGENS", area:"GABINETE", descricao:"REUNIÃO PRESIDÊNCIA E ENTREVISTA CANAL SAÚDE", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:3, modalidade:"PASSAGENS"},
+        {item:123, valor:570.00, data:"2026-04-16", projeto:"GEREB 001 FIO 24", rubrica:"DIÁRIAS", area:"GABINETE", descricao:"REUNIÃO PRESIDÊNCIA", favorecido:"MARIA FABIANA DAMÁSIO PASSOS", meta:3, modalidade:"DIÁRIAS"},
+        {item:124, valor:3312.27, data:"2026-04-16", projeto:"GEREB 001 FIO 24", rubrica:"PASSAGENS", area:"ASCOM", descricao:"ASSESSORAR DIRETORA NA ENTREVISTA", favorecido:"FABIANA MASCARENHAS SANTANA", meta:3, modalidade:"PASSAGENS"},
+        {item:125, valor:570.00, data:"2026-04-16", projeto:"GEREB 001 FIO 24", rubrica:"DIÁRIAS", area:"ASCOM", descricao:"ASSESSORAR DIRETORA", favorecido:"FABIANA MASCARENHAS SANTANA", meta:3, modalidade:"DIÁRIAS"},
+        {item:126, valor:1800.82, data:"2026-04-15", projeto:"GEREB 018 FIO 23", rubrica:"PASSAGENS", area:"GESTÃO", descricao:"PARTICIPAR DA SEMANA DE GESTÃO", favorecido:"ROGÉRIO SENA CORADO", meta:3, modalidade:"PASSAGENS"},
+        {item:127, valor:146000.00, data:"2026-01-02", projeto:"GEREB 014 FIO 25", rubrica:"BOLSA", area:"NUSMAD", descricao:"CONCESSÃO DE BOLSA - 10 MESES", favorecido:"FERNANDA MARIA DUARTE SEVERO", meta:5, modalidade:"BOLSA"},
+        {item:128, valor:57600.00, data:"2026-01-02", projeto:"GEREB 018 FIO 23", rubrica:"BOLSA", area:"NUSMAD", descricao:"CONCESSÃO DE BOLSA - 06 MESES", favorecido:"JAQUELINE TAVARES DE ASSIS", meta:3, modalidade:"BOLSA"},
+        {item:129, valor:27000.00, data:"2026-01-02", projeto:"GEREB 018 FIO 23", rubrica:"BOLSA", area:"NUSMAD", descricao:"CONCESSÃO DE BOLSA - 06 MESES", favorecido:"KARINA APARECIDA FIGUEIREDO", meta:3, modalidade:"BOLSA"}
+    ];
+
+    // Total gasto 2026 (soma da coluna E da DI 2026)
+    const totalGasto2026 = gastosCompletos.reduce((acc, d) => acc + d.valor, 0);
+    console.log("Total novo:", totalGasto2026.toFixed(2)); // aproximadamente 1.833.000,00
+
+    // --------------------------------------------------------------
+    // 2. DADOS DA ABA "DIM - PROJETOS" – coluna U (SALDO DI CAIXA GERAL)
+    //    Extraídos da nova planilha (valores atualizados)
+    // --------------------------------------------------------------
+    const saldosDI = [
+        0, 365263.06, 31893.12, 69117.39, 0, 11912.61, 7394.06, 1851.13, 5759.33, 7491.84,
+        111877.20, 370502.98, 125400.31, 419436.57, 9134.67, 528.77, 581.72, 60772.92, 0,
+        52151.72, 1149.22, 21792.62, 228066.27, 294674.98, 14062.06, 12072.09, 22746.48,
+        30979.18, 3061.10, 77047.12, 418016.49, 1851.13, 594748.30, 88030.49, 178414.88, 365263.06
+    ];
+    const totalSaldoDI = saldosDI.reduce((acc, val) => acc + val, 0);
+
+    // Também extrair o saldo geral (coluna T) para manter o indicador "Saldo total geral"
+    const saldosGerais = [
+        -2457850.79, 1619158.39, 669755.44, 1371932.26, -153274.19, 250165.68, 155701.23, 40325.44,
+        151182.33, 157328.56, 2349421.22, 7780562.11, 4431925.39, 8808169.74, 191828.07, 14336.93,
+        12216.14, 3078837.32, -54442.67, 1095186.85, 24148.70, 462026.41, 4789391.55, 6594876.80,
+        296662.67, 721542.07, 558246.34, 685190.17, 57436.72, 1636325.82, 8778346.11, 2634392.14,
+        12489714.38, 6168564.54, 3351601.37, 1619158.39
+    ];
+    const totalSaldoGeral = saldosGerais.reduce((acc, val) => acc + val, 0);
+
+    // --------------------------------------------------------------
+    // GRÁFICOS E CONTROLE
+    // --------------------------------------------------------------
+    let tabulatorTable;
+    let rankingAllChart, rubricChart, areaRubricChart;
+    let currentDataGastos = [...gastosCompletos];
+
+    function formatMoney(value) { return "R$ " + value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    // KPIs (agora são 5: total gasto, projeto com maior gasto, projetos onerados, saldo geral, saldo DI)
+    function updateKPIs(data) {
+        const total = data.reduce((acc, d) => acc + d.valor, 0);
+        const projetosOnerados = new Set(data.map(d => d.projeto)).size;
+        const projMap = data.reduce((map, d) => map.set(d.projeto, (map.get(d.projeto)||0)+d.valor), new Map());
+        const topProjeto = Array.from(projMap.entries()).sort((a,b)=>b[1]-a[1])[0];
+        document.getElementById("kpiContainer").innerHTML = `
+            <div class="kpi-card"><div class="kpi-title">💰 TOTAL GASTO 2026</div><div class="kpi-value">${formatMoney(total)}</div></div>
+            <div class="kpi-card"><div class="kpi-title">🏆 PROJETO COM MAIOR GASTO</div><div class="kpi-value">${topProjeto ? topProjeto[0] : "N/A"}<br>${topProjeto ? formatMoney(topProjeto[1]) : ""}</div></div>
+            <div class="kpi-card"><div class="kpi-title">📊 PROJETOS ONERADOS</div><div class="kpi-value">${projetosOnerados}</div></div>
+            <div class="kpi-card"><div class="kpi-title">🏦 SALDO TOTAL GERAL DISPONÍVEL (Caixa Fiotec - 24/04/2026)</div><div class="kpi-value">${formatMoney(totalSaldoGeral)}</div></div>
+            <div class="kpi-card"><div class="kpi-title">📈 SALDO TOTAL DI DOS PROJETOS (Caixa Fiotec - 24/04/2026)</div><div class="kpi-value">${formatMoney(totalSaldoDI)}</div></div>
+        `;
+    }
+
+    // Ranking completo - sem legenda
+    function updateRankingAllChart(data) {
+        const projMap = new Map();
+        data.forEach(d => projMap.set(d.projeto, (projMap.get(d.projeto)||0) + d.valor));
+        const sorted = Array.from(projMap.entries()).sort((a,b)=>b[1]-a[1]);
+        const labels = sorted.map(p => p[0]);
+        const values = sorted.map(p => p[1]);
+        if (rankingAllChart) rankingAllChart.destroy();
+        const ctx = document.getElementById('rankingAllProjectsChart').getContext('2d');
+        rankingAllChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: '', data: values, backgroundColor: '#0066a1' }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `R$ ${ctx.raw.toLocaleString('pt-BR')}` } } } }
+        });
+    }
+
+    // Utilização por tipo de gasto (rubrica)
+    function updateRubricChart(data) {
+        const rubMap = new Map();
+        data.forEach(d => rubMap.set(d.rubrica, (rubMap.get(d.rubrica)||0) + d.valor));
+        if (rubricChart) rubricChart.destroy();
+        const ctx = document.getElementById('rubricChart').getContext('2d');
+        rubricChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: Array.from(rubMap.keys()), datasets: [{ data: Array.from(rubMap.values()), backgroundColor: ['#0066a1','#009c6d','#f0a500','#c75146','#3b8dbd','#8e5ea2','#a569bd'] }] },
+            options: { plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${formatMoney(ctx.raw)}` } } } }
+        });
+    }
+
+    // Concentração de gastos por área demandante e rubrica
+    function updateAreaRubricChart(data) {
+        const areaRubMap = new Map();
+        data.forEach(d => {
+            if (!areaRubMap.has(d.area)) areaRubMap.set(d.area, new Map());
+            const rubMap = areaRubMap.get(d.area);
+            rubMap.set(d.rubrica, (rubMap.get(d.rubrica)||0) + d.valor);
+        });
+        const areaTotal = Array.from(areaRubMap.entries()).map(([area, rubMap]) => ({ area, total: Array.from(rubMap.values()).reduce((a,b)=>a+b,0) }));
+        areaTotal.sort((a,b) => b.total - a.total);
+        const topAreas = areaTotal.slice(0, 12);
+        const rubricasSet = new Set();
+        data.forEach(d => rubricasSet.add(d.rubrica));
+        const rubricas = Array.from(rubricasSet);
+        const datasets = rubricas.map(rub => ({
+            label: rub,
+            data: topAreas.map(a => areaRubMap.get(a.area).get(rub) || 0),
+            backgroundColor: `hsl(${rubricas.indexOf(rub) * 360 / rubricas.length}, 70%, 60%)`,
+            stack: 'stack0'
+        }));
+        if (areaRubricChart) areaRubricChart.destroy();
+        const ctx = document.getElementById('areaRubricChart').getContext('2d');
+        areaRubricChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: topAreas.map(a => a.area), datasets: datasets },
+            options: { responsive: true, maintainAspectRatio: true, scales: { x: { stacked: true, ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } }, y: { stacked: true, ticks: { callback: (val) => formatMoney(val) } } }, plugins: { tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatMoney(ctx.raw)}` } } } }
+        });
+    }
+
+    // Tabela de gastos
+    function buildGastosTable(data) {
+        if (tabulatorTable) tabulatorTable.destroy();
+        const columns = [
+            { title: "Descrição", field: "descricao", width: 300, headerFilter: "input" },
+            { title: "Valor (R$)", field: "valor", width: 120, formatter: (c) => formatMoney(c.getValue()), headerFilter: "input" },
+            { title: "Área Demandante", field: "area", width: 180, headerFilter: "input" },
+            { title: "Favorecido", field: "favorecido", width: 220, headerFilter: "input" },
+            { title: "Projeto", field: "projeto", width: 150, headerFilter: "input" },
+            { title: "Meta", field: "meta", width: 80, headerFilter: "input" },
+            { title: "Modalidade", field: "modalidade", width: 120, headerFilter: "input" },
+            { title: "Rubrica", field: "rubrica", width: 120, headerFilter: "input" }
+        ];
+        tabulatorTable = new Tabulator("#gastos-table", {
+            data: data,
+            columns: columns,
+            layout: "fitColumns",
+            pagination: "local",
+            paginationSize: 15,
+            height: "500px",
+            editable: false
+        });
+    }
+
+    // Filtros
+    function populateFilters() {
+        const projetos = [...new Set(gastosCompletos.map(d => d.projeto))].sort();
+        const rubricas = [...new Set(gastosCompletos.map(d => d.rubrica))].sort();
+        const areas = [...new Set(gastosCompletos.map(d => d.area))].sort();
+        const favorecidos = [...new Set(gastosCompletos.map(d => d.favorecido))].sort();
+        document.getElementById("filter-projeto").innerHTML = '<option value="">Todos</option>' + projetos.map(p => `<option value="${p}">${p}</option>`).join('');
+        document.getElementById("filter-rubrica").innerHTML = '<option value="">Todas</option>' + rubricas.map(r => `<option value="${r}">${r}</option>`).join('');
+        document.getElementById("filter-area").innerHTML = '<option value="">Todas</option>' + areas.map(a => `<option value="${a}">${a}</option>`).join('');
+        document.getElementById("filter-favorecido").innerHTML = '<option value="">Todos</option>' + favorecidos.map(f => `<option value="${f}">${f}</option>`).join('');
+    }
+
+    function applyFilters() {
+        let filtered = [...gastosCompletos];
+        const projeto = document.getElementById("filter-projeto").value;
+        const rubrica = document.getElementById("filter-rubrica").value;
+        const area = document.getElementById("filter-area").value;
+        const favorecido = document.getElementById("filter-favorecido").value;
+        const dataIni = document.getElementById("data-inicio").value;
+        const dataFim = document.getElementById("data-fim").value;
+        if (projeto) filtered = filtered.filter(d => d.projeto === projeto);
+        if (rubrica) filtered = filtered.filter(d => d.rubrica === rubrica);
+        if (area) filtered = filtered.filter(d => d.area === area);
+        if (favorecido) filtered = filtered.filter(d => d.favorecido === favorecido);
+        if (dataIni) filtered = filtered.filter(d => d.data >= dataIni);
+        if (dataFim) filtered = filtered.filter(d => d.data <= dataFim);
+        currentDataGastos = filtered;
+        updateKPIs(currentDataGastos);
+        updateRankingAllChart(currentDataGastos);
+        updateRubricChart(currentDataGastos);
+        updateAreaRubricChart(currentDataGastos);
+        buildGastosTable(currentDataGastos);
+    }
+
+    function resetFilters() {
+        document.getElementById("filter-projeto").value = "";
+        document.getElementById("filter-rubrica").value = "";
+        document.getElementById("filter-area").value = "";
+        document.getElementById("filter-favorecido").value = "";
+        document.getElementById("data-inicio").value = "";
+        document.getElementById("data-fim").value = "";
+        applyFilters();
+    }
+
+    function exportCSV() {
+        const data = tabulatorTable.getData();
+        const csv = Papa.unparse(data);
+        const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "gastos_di_2026_filtrados.csv";
+        link.click();
+    }
+
+    window.onload = () => {
+        populateFilters();
+        applyFilters();
+        document.getElementById("aplicar-filtros").addEventListener("click", applyFilters);
+        document.getElementById("reset-filtros").addEventListener("click", resetFilters);
+        document.getElementById("export-csv").addEventListener("click", exportCSV);
+    };
+</script>
+</body>
+</html>
